@@ -18,7 +18,16 @@ if [[ ! -f "$source_path" ]]; then
     exit 1
 fi
 
-if ! xcrun --find clang >/dev/null 2>&1; then
+# Prefer the Command Line Tools when they are installed: they need no Xcode
+# license acceptance, and their compiler, linker and SDK always match. Without
+# this, xcrun can fail right after an Xcode update ("You have not agreed to the
+# Xcode license") or pair an older Xcode linker with a newer Command Line Tools SDK.
+clt_dir="/Library/Developer/CommandLineTools"
+if [[ -x "$clt_dir/usr/bin/clang" && -d "$clt_dir/SDKs/MacOSX.sdk" ]]; then
+    export DEVELOPER_DIR="$clt_dir"
+fi
+
+if ! xcrun --sdk macosx --find clang >/dev/null 2>&1; then
     printf "Apple Command Line Tools are required to compile the transparent helper.\n"
     printf "Starting Apple's installer now. After installation finishes, run this launcher again.\n\n"
     xcode-select --install
@@ -41,7 +50,8 @@ trap cleanup EXIT INT TERM
 binary_path="$work_dir/magicmouse-wake"
 
 printf "Building the one-shot helper from the readable source beside this launcher…\n"
-if ! xcrun clang -O2 -Wall -Wextra \
+# --sdk macosx keeps the compiler, linker and SDK from the same developer directory.
+if ! xcrun --sdk macosx clang -O2 -Wall -Wextra \
     -o "$binary_path" \
     "$source_path" \
     -framework IOKit \
